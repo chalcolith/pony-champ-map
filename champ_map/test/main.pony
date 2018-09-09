@@ -10,4 +10,7 @@ actor Main is TestList
     test(_TestBitsChunkBits)
     test(_TestBitsMaxLevel)
     test(_TestBitsMask)
-    test(_TestHashMapEmpty)
+    test(_TestHashMapLookupEmpty)
+    test(_TestHashMapLookupSingleExisting)
+    test(_TestHashMapLookupSingleNonexistent)
+    test(_TestHashMapInsertMultiple)

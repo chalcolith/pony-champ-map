@@ -20,6 +20,10 @@ class val HashMap[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
     _root = _MapNode[K, V, H].empty()
     _size = 0
 
+  new val _create(root: _MapNode[K, V, H], size: USize) =>
+    _root = root
+    _size = size
+
   fun val apply(k: K): val->V ? =>
     _root(k, H.hash(k), 0)?
 
@@ -29,3 +33,7 @@ class val HashMap[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
     else
       None
     end
+
+  fun val update(key: K, value: V): HashMap[K, V, H] ? =>
+    (let node, let inserted) = _root.update(key, H.hash(key), value, 0)?
+    _create(node, if inserted then _size + 1 else _size end)
