@@ -10,12 +10,8 @@ class iso _TestHashMapLookupEmpty is UnitTest
 
   fun apply(h: TestHelper) =>
     let map = Map[USize, USize]
-    try
-      let v = map(123)?
-      h.fail("map lookup succeeded on an empty map")
-    else
-      h.complete(true)
-    end
+    h.assert_error({() ? => let v = map(123)? },
+      "map lookup succeeded on an empty map")
 
 class iso _TestHashMapLookupSingleExisting is UnitTest
   fun name(): String => "hash_map/lookup_single_existing"
@@ -31,19 +27,14 @@ class iso _TestHashMapLookupSingleNonexistent is UnitTest
   fun apply(h: TestHelper) ? =>
     var map = Map[USize, USize]
     map = map.update(USize(1234), USize(5678))?
-    try
-      let v = map(USize(9876))?
-      h.fail("map lookup succeeded on the wrong key")
-    else
-      h.complete(true)
-    end
+    h.assert_error({() ? => let v = map(USize(9876))? },
+    "map lookup succeeded on the wrong key")
 
 class iso _TestHashMapInsertMultiple is UnitTest
   fun name(): String => "hash_map/insert_multiple"
 
   fun apply(h: TestHelper) ? =>
     let num: USize = 10_000
-
     let rng = Rand
     let arr = Array[(USize,USize)](num)
 
@@ -71,3 +62,38 @@ class iso _TestHashMapInsertMultiple is UnitTest
     end
     h.assert_eq[USize](0, num_found, "found " + num_found.string() +
       " collisions")
+
+class iso _TestHashMapDeleteMultiple is UnitTest
+  fun name(): String => "hash_map/delete_multiple"
+
+  fun apply(h: TestHelper) ? =>
+    let num: USize = 1_000
+    let rng = Rand
+    let arr = Array[(USize, USize)](num)
+    var map = Map[USize, USize]
+    for i in c.Range(0, num) do
+      var k = rng.next().usize()
+      let v = rng.next().usize()
+      arr.push((k, v))
+      map = map.update(k, v)?
+    end
+
+    var size = map.size()
+    for i in c.Range(0, num, 2) do
+      (let k, let v) = arr(i)?
+
+      h.assert_no_error(
+        {() ? =>
+          let actual = map(k)?
+          h.assert_eq[USize](v, actual)
+        },
+        "map did not contain (" + k.string() + ", " + v.string() + ") @ " +
+          i.string())
+
+      map = map.remove(k)?
+
+      size = size - 1
+      h.assert_eq[USize](size, map.size())
+      h.assert_error({() ? => let actual = map(k)? },
+        "map lookup succeeded after delete")
+    end

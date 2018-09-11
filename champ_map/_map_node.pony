@@ -15,6 +15,9 @@ primitive Bits
   fun set(n: USize, b: USize): USize =>
     n or (USize(1) << b)
 
+  fun clear(n: USize, b: USize): USize =>
+    n and (not (USize(1) << b))
+
   fun mask(hash: USize, level: USize): USize ? =>
     let chunk = chunk_bits()?
     (hash >> (level * chunk)) and ((1 << chunk) - 1)
@@ -52,6 +55,8 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
     match _entries(idx)?
     | (_, let v: V) =>
       v
+    | let node: _MapNode[K, V, H] =>
+      node(key, hash, level + 1)?
     | let bucket: _MapBucket[K, V, H] =>
       for entry in bucket.values() do
         if H.eq(entry._1, key) then
@@ -59,8 +64,6 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
         end
       end
       error
-    | let node: _MapNode[K, V, H] =>
-      node(key, hash, level + 1)?
     end
 
   fun val update(key: K, hash: USize, value: V, level: USize)
@@ -155,4 +158,71 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
           es.>insert(new_idx, (key, value))?
         end
       (_MapNode[K, V, H](consume new_entries, new_bitmap), true)
+    end
+
+  fun val remove(key: K, hash: USize, level: USize)
+    : (_MapNode[K, V, H] | _MapLeaf[K, V, H] | None) ?
+  =>
+    let bit = Bits.bitpos(hash, level)?
+    let idx = Bits.index(_bitmap, bit)
+    match _entries(idx)?
+    | let _: _MapLeaf[K, V, H] =>
+      if (level == 0) or (_entries.size() >= 2) then
+        // return a node minus the entry
+        let es = recover _entries.clone() end
+        es.delete(idx)?
+        _MapNode[K, V, H](consume es, Bits.clear(_bitmap, bit))
+      elseif _entries.size() == 2 then
+        // get rid of this node and hoist the remaining entry
+        return _entries(1 - idx)? as (_MapNode[K, V, H] | _MapLeaf[K, V, H])
+      else
+        // get rid of this node and remove its entry in the node above
+        None
+      end
+    | let node: _MapNode[K, V, H] =>
+      match node.remove(key, hash, level + 1)?
+      | None =>
+        // node pointed to a single entry; just remove it
+        if (level == 0) or (_entries.size() >= 2) then
+          let es = recover _entries.clone() end
+          es.delete(idx)?
+          _MapNode[K, V, H](consume es, Bits.clear(_bitmap, bit))
+        else
+          None
+        end
+      | let entry: _MapEntry[K, V, H] =>
+        // replace the node
+        let es = recover _entries.clone() end
+        es(idx)? = entry
+        _MapNode[K, V, H](consume es, _bitmap)
+      end
+    | let bucket: _MapBucket[K, V, H] =>
+      // remove us from the bucket
+      let bs =
+        recover val
+          let bs' = _MapBucket[K, V, H]
+          for entry in bucket.values() do
+            if not H.eq(entry._1, key) then
+              bs'.push(entry)
+            end
+          end
+          bs'
+        end
+      if bs.size() == bucket.size() then
+        // we didn't find our entry
+        error
+      end
+
+      if bs.size() == 0 then
+        // remove this node from the node above
+        None
+      elseif bs.size() == 1 then
+        // hoist the remaining entry
+        bs(0)?
+      else
+        // remove from the bucket
+        let es = recover _entries.clone() end
+        es(idx)? = bs
+        _MapNode[K, V, H](consume es, _bitmap)
+      end
     end
