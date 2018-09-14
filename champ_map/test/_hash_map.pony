@@ -13,6 +13,9 @@ class val _TestValue
     n = n'
     s = n'.string()
 
+  fun string(): String iso^ =>
+    n.string()
+
 class iso _TestHashMapLookupEmpty is UnitTest
   fun name(): String => "hash_map/lookup_empty"
 
@@ -42,18 +45,21 @@ class iso _TestHashMapInsertMultiple is UnitTest
   fun name(): String => "hash_map/insert_multiple"
 
   fun apply(h: TestHelper) ? =>
-    let num: USize = 10_000
+    let num: USize = 10000
     let rng = Rand
     let arr = Array[(USize,_TestValue)](num)
 
     let not_in_map = rng.next().usize()
     var map = Map[USize, _TestValue]
+    //_Debug.debug(h, map)
     for i in c.Range(0, num) do
       var k = rng.next().usize()
       while k == not_in_map do k = rng.next().usize() end
       let v = _TestValue(rng.next().usize())
       arr.push((k, v))
+      //h.log("adding k=" + k.string() + ", v=" + v.n.string())
       map = map.update(k, v)?
+      //_Debug.debug(h, map)
     end
 
     for (k, expected) in arr.values() do
@@ -71,22 +77,23 @@ class iso _TestHashMapInsertMultiple is UnitTest
     h.assert_eq[USize](0, num_found, "found " + num_found.string() +
       " collisions")
 
-class iso _TestHashMapDeleteMultiple is UnitTest
-  fun name(): String => "hash_map/delete_multiple"
+class iso _TestHashMapRemoveMultiple is UnitTest
+  fun name(): String => "hash_map/remove_multiple"
 
   fun apply(h: TestHelper) ? =>
-    let num: USize = 1000
+    let num: USize = 10
     let rng = Rand(1234, 5678)
 
     let keys = _Shuffle.get_array(rng, num)?
     let vals = Array[_TestValue](num)
     var map = Map[USize, _TestValue]
+    _Debug.debug(h, map)
     for k in keys.values() do
       let v = _TestValue(rng.next().usize())
-      //h.log("adding k=" + k.string() + ", v=" + v.n.string())
-
+      h.log("adding k=" + k.string() + ", v=" + v.n.string())
       vals.push(v)
       map = map.update(k, v)?
+      _Debug.debug(h, map)
     end
 
     var expected_size = map.size()
@@ -94,8 +101,8 @@ class iso _TestHashMapDeleteMultiple is UnitTest
     for i in indices_to_delete.values() do
       let k = keys(i)?
       let v = vals(i)?
-
-      //h.log("deleting i=" + i.string() + ", k=" + k.string())
+      h.log("deleting i=" + i.string() + ", k=" + k.string())
+      //_Debug.debug(h, map)
 
       h.assert_no_error(
         {() ? =>
@@ -107,6 +114,7 @@ class iso _TestHashMapDeleteMultiple is UnitTest
       )
 
       map = map.remove(k)?
+      _Debug.debug(h, map)
 
       expected_size = expected_size - 1
       h.assert_eq[USize](expected_size, map.size())
@@ -125,12 +133,21 @@ primitive _Shuffle
     for i in c.Range(0, size) do
       arr.push(i)
     end
-
     for i in c.Range(0, arr.size() - 1) do
       let idx = i + (rng.next().usize() % (arr.size() - i))
       let temp = arr(idx)?
       arr(idx)? = arr(i)?
       arr(i)? = temp
     end
-
     arr
+
+primitive _Debug
+  fun debug(h: TestHelper, map: Map[USize, _TestValue]) =>
+    var str: String iso = recover String end
+    str = map.debug(consume str, _Debug~print[USize](),
+      _Debug~print[_TestValue]())
+    h.log(str.clone())
+
+  fun print[T: (Stringable & Any val)](t: T, str: String iso): String iso^ =>
+    str.append(t.string())
+    consume str

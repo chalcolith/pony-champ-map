@@ -14,4 +14,4 @@ actor Main is TestList
     test(_TestHashMapLookupSingleExisting)
     test(_TestHashMapLookupSingleNonexistent)
     test(_TestHashMapInsertMultiple)
-    test(_TestHashMapDeleteMultiple)
+    test(_TestHashMapRemoveMultiple)

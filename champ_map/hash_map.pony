@@ -41,6 +41,11 @@ class val HashMap[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
     (let node, let inserted) = _root.update(key, H.hash(key), value, 0)?
     _create(node, if inserted then _size + 1 else _size end)
 
+  fun val debug(str: String iso, pk: {(K, String iso): String iso^},
+    pv: {(V, String iso): String iso^}): String iso^
+  =>
+    _root.debug(consume str, 0, pk, pv)
+
   fun val remove(k: K): HashMap[K, V, H] ? =>
     match _root.remove(k, H.hash(k), 0)?
     | let node: _MapNode[K, V, H] =>
