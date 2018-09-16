@@ -133,6 +133,7 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
         // node pointed to a single entry; just remove it
         _remove_entry(idx, level)?
       | let entry: _MapEntry[K, V, H] =>
+        // replace entry
         let es = recover _entries.clone() end
         es(idx)? = entry
         _MapNode[K, V, H](consume es, _bitmap)
@@ -153,9 +154,16 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
         // we didn't find our entry
         error
       end
-      if (level != 0) and (bs.size() == 0) then
-        // remove this node from the node above
-        _NodeRemoved
+      if (level > 0) and (bs.size() < 2) then
+        if bs.size() == 0 then
+          // bucket is now empty
+          _remove_entry(idx, level)?
+        else
+          // promote remaining value to leaf
+          let es = recover _entries.clone() end
+          es(idx)? = bs(0)?
+          _MapNode[K, V, H](consume es, _bitmap)
+        end
       else
         // remove entry from the bucket
         let es = recover _entries.clone() end
@@ -167,7 +175,7 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
   fun val _remove_entry(idx: USize, level: USize)
     : (_MapNode[K, V, H] | _MapLeaf[K, V, H] | _NodeRemoved) ?
   =>
-    if (level != 0) and (_entries.size() <= 2) then
+    if (level > 0) and (_entries.size() <= 2) then
       if _entries.size() == 1 then
         _NodeRemoved
       else
