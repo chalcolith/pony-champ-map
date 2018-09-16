@@ -45,7 +45,7 @@ class iso _TestHashMapInsertMultiple is UnitTest
   fun name(): String => "hash_map/insert_multiple"
 
   fun apply(h: TestHelper) ? =>
-    let num: USize = 10000
+    let num: USize = 10_000
     let rng = Rand
     let arr = Array[(USize,_TestValue)](num)
 
@@ -81,19 +81,19 @@ class iso _TestHashMapRemoveMultiple is UnitTest
   fun name(): String => "hash_map/remove_multiple"
 
   fun apply(h: TestHelper) ? =>
-    let num: USize = 10
+    let num: USize = 1000
     let rng = Rand(1234, 5678)
 
     let keys = _Shuffle.get_array(rng, num)?
     let vals = Array[_TestValue](num)
     var map = Map[USize, _TestValue]
-    _Debug.debug(h, map)
+    //_Debug.debug(h, map)
     for k in keys.values() do
       let v = _TestValue(rng.next().usize())
-      h.log("adding k=" + k.string() + ", v=" + v.n.string())
+      //h.log("adding k=" + k.string() + ", v=" + v.n.string())
       vals.push(v)
       map = map.update(k, v)?
-      _Debug.debug(h, map)
+      //_Debug.debug(h, map)
     end
 
     var expected_size = map.size()
@@ -101,7 +101,7 @@ class iso _TestHashMapRemoveMultiple is UnitTest
     for i in indices_to_delete.values() do
       let k = keys(i)?
       let v = vals(i)?
-      h.log("deleting i=" + i.string() + ", k=" + k.string())
+      //h.log("deleting i=" + i.string() + ", k=" + k.string())
       //_Debug.debug(h, map)
 
       h.assert_no_error(
@@ -114,7 +114,7 @@ class iso _TestHashMapRemoveMultiple is UnitTest
       )
 
       map = map.remove(k)?
-      _Debug.debug(h, map)
+      //_Debug.debug(h, map)
 
       expected_size = expected_size - 1
       h.assert_eq[USize](expected_size, map.size())

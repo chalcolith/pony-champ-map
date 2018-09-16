@@ -22,60 +22,6 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
     _entries = consume entries
     _bitmap = bitmap
 
-  fun val debug(str: String iso, level: USize,
-    pk: {(K, String iso): String iso^}, pv: {(V, String iso): String iso^})
-    : String iso^
-  =>
-    var str': String iso = consume str
-    for _ in col.Range(0, level) do str'.append("  ") end
-    str'.append("{ " + level.string() + " < ")
-    for bit in col.Range(0, USize(0).bitwidth()) do
-      if ((USize(1) << bit) and _bitmap) != 0 then
-        str'.append(bit.string())
-        str'.append(" ")
-      end
-    end
-    str'.append(">\n")
-
-    var i: USize = 0
-    for entry in _entries.values() do
-      if i > 0 then
-        str'.append(",\n")
-      end
-      match entry
-      | (let k: K, let v: V) =>
-        for _ in col.Range(0, level+1) do str'.append("  ") end
-        str'.append("(")
-        str' = pk(k, consume str')
-        str'.append(", ")
-        str' = pv(v, consume str')
-        str'.append(")")
-      | let node: _MapNode[K, V, H] =>
-        str' = node.debug(consume str', level+1, pk, pv)
-      | let bucket: _MapBucket[K, V, H] =>
-        for _ in col.Range(0, level+1) do str'.append("  ") end
-        str'.append("[")
-        var j: USize = 0
-        for value in bucket.values() do
-          if j > 0 then
-            str'.append(", ")
-          end
-          str'.append("(")
-          str' = pk(value._1, consume str')
-          str'.append(", ")
-          str' = pv(value._2, consume str')
-          str'.append(")")
-          j = j + 1
-        end
-        str'.append("]")
-      end
-      i = i + 1
-    end
-    str'.append("\n")
-    for _ in col.Range(0, level) do str'.append("  ") end
-    str'.append("}")
-    consume str'
-
   fun val apply(key: K, hash: USize, level: USize): V ? =>
     let msk = Bits.mask(hash, level)
     let bit = Bits.bitpos(hash, level)
@@ -176,48 +122,16 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
     let idx = Bits.index(_bitmap, bit)
     match _entries(idx)?
     | (let k: K, let v: V) =>
-      // hash matches a leaf
+      // hash matches a leaf, remove it
       if not H.eq(k, key) then
         error
       end
-      if (level != 0) and (_entries.size() <= 2) then
-        if _entries.size() == 1 then
-          _NodeRemoved
-        else
-          let entry = _entries(1 - idx)?
-          match entry
-          | let leaf: _MapLeaf[K, V, H] =>
-            leaf
-          else
-            _MapNode[K, V, H]([entry], _bitmap and (not bit))
-          end
-        end
-      else
-        let es = recover _entries.clone() end
-        es.delete(idx)?
-        _MapNode[K, V, H](consume es, _bitmap and (not bit))
-      end
+      _remove_entry(idx, level)?
     | let node: _MapNode[K, V, H] =>
       match node.remove(key, hash, level + 1)?
       | _NodeRemoved =>
         // node pointed to a single entry; just remove it
-        if (level != 0) and (_entries.size() <= 2) then
-          if _entries.size() == 1 then
-            _NodeRemoved
-          else
-            let entry = _entries(1 - idx)?
-            match entry
-            | let leaf: _MapLeaf[K, V, H] =>
-              leaf
-            else
-              _MapNode[K, V, H]([entry], _bitmap and (not bit))
-            end
-          end
-        else
-          let es = recover _entries.clone() end
-          es.delete(idx)?
-          _MapNode[K, V, H](consume es, _bitmap and (not bit))
-        end
+        _remove_entry(idx, level)?
       | let entry: _MapEntry[K, V, H] =>
         let es = recover _entries.clone() end
         es(idx)? = entry
@@ -249,5 +163,93 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
         _MapNode[K, V, H](consume es, _bitmap)
       end
     end
+
+  fun val _remove_entry(idx: USize, level: USize)
+    : (_MapNode[K, V, H] | _MapLeaf[K, V, H] | _NodeRemoved) ?
+  =>
+    if (level != 0) and (_entries.size() <= 2) then
+      if _entries.size() == 1 then
+        _NodeRemoved
+      else
+        let entry = _entries(1 - idx)?
+        match entry
+        | let leaf: _MapLeaf[K, V, H] =>
+          leaf
+        else
+          _MapNode[K, V, H]([entry], _remove_bit(idx))
+        end
+      end
+    else
+      let es = recover _entries.clone() end
+      es.delete(idx)?
+      _MapNode[K, V, H](consume es, _remove_bit(idx))
+    end
+
+  fun val _remove_bit(idx: USize): USize =>
+    var found: USize = 0
+    for i in col.Range(0, USize(0).bitwidth()) do
+      let bit = USize(1) << i
+      if (bit and _bitmap) != 0 then
+        if found == idx then
+          return _bitmap and (not bit)
+        end
+        found = found + 1
+      end
+    end
+    _bitmap
+
+  fun val debug(str: String iso, level: USize,
+    pk: {(K, String iso): String iso^}, pv: {(V, String iso): String iso^})
+    : String iso^
+  =>
+    var str': String iso = consume str
+    for _ in col.Range(0, level) do str'.append("  ") end
+    str'.append("{ " + level.string() + " < ")
+    for bit in col.Range(0, USize(0).bitwidth()) do
+      if ((USize(1) << bit) and _bitmap) != 0 then
+        str'.append(bit.string())
+        str'.append(" ")
+      end
+    end
+    str'.append(">\n")
+
+    var i: USize = 0
+    for entry in _entries.values() do
+      if i > 0 then
+        str'.append(",\n")
+      end
+      match entry
+      | (let k: K, let v: V) =>
+        for _ in col.Range(0, level+1) do str'.append("  ") end
+        str'.append("(")
+        str' = pk(k, consume str')
+        str'.append(", ")
+        str' = pv(v, consume str')
+        str'.append(")")
+      | let node: _MapNode[K, V, H] =>
+        str' = node.debug(consume str', level+1, pk, pv)
+      | let bucket: _MapBucket[K, V, H] =>
+        for _ in col.Range(0, level+1) do str'.append("  ") end
+        str'.append("[")
+        var j: USize = 0
+        for value in bucket.values() do
+          if j > 0 then
+            str'.append(", ")
+          end
+          str'.append("(")
+          str' = pk(value._1, consume str')
+          str'.append(", ")
+          str' = pv(value._2, consume str')
+          str'.append(")")
+          j = j + 1
+        end
+        str'.append("]")
+      end
+      i = i + 1
+    end
+    str'.append("\n")
+    for _ in col.Range(0, level) do str'.append("  ") end
+    str'.append("}")
+    consume str'
 
 primitive _NodeRemoved
