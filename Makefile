@@ -1,4 +1,4 @@
-target := champ_map
+target := champ-map
 config ?= release
 
 SRC_DIR ?= $(target)

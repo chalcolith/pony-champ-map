@@ -1,5 +1,5 @@
 @echo off
-set TARGET=champ_map
+set TARGET=champ-map
 
 if "%1"=="help" goto usage
 if "%1"=="--help" goto usage
