@@ -7,9 +7,9 @@ actor Main is TestList
     PonyTest(env, this)
 
   fun tag tests(test: PonyTest) =>
-    test(_TestBitsChunkBits)
-    test(_TestBitsMaxLevel)
-    test(_TestBitsMask)
+    // test(_TestBitsChunkBits)
+    // test(_TestBitsMaxLevel)
+    // test(_TestBitsMask)
     test(_TestHashMapLookupEmpty)
     test(_TestHashMapLookupSingleExisting)
     test(_TestHashMapLookupSingleNonexistent)

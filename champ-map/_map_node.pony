@@ -23,9 +23,8 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
     _bitmap = bitmap
 
   fun val apply(key: K, hash: USize, level: USize): V ? =>
-    let msk = Bits.mask(hash, level)
-    let bit = Bits.bitpos(hash, level)
-    let idx = Bits.index(_bitmap, bit)
+    let bit = _Bits.bitpos(hash, level)
+    let idx = _Bits.index(_bitmap, bit)
     match _entries(idx)?
     | (let k: K, let v: V) =>
       if H.eq(k, key) then
@@ -47,9 +46,8 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
   fun val update(key: K, hash: USize, value: V, level: USize)
     : (_MapNode[K, V, H], Bool) ?
   =>
-    let msk = Bits.mask(hash, level)
-    let bit = Bits.bitpos(hash, level)
-    let idx = Bits.index(_bitmap, bit)
+    let bit = _Bits.bitpos(hash, level)
+    let idx = _Bits.index(_bitmap, bit)
     if idx < _entries.size() then
       // there is already an entry at the index in our array
       match _entries(idx)?
@@ -60,7 +58,7 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
           let new_entries = recover iso _entries.clone() end
           new_entries.update(idx, (key, value))?
           (_MapNode[K, V, H](consume new_entries, _bitmap), false)
-        elseif level == Bits.max_level() then
+        elseif level == _Bits.max_level() then
           // we don't have any hash left, make a new bucket
           let new_bucket =
             recover val
@@ -75,7 +73,7 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
           // make a new node with the original value and ours
           var sub_node = _MapNode[K, V, H].empty()
           (sub_node, _) = sub_node.update(existing_key, H.hash(existing_key),
-            existing_value, level+1)?
+            existing_value, level + 1)?
           (sub_node, _) = sub_node.update(key, hash, value, level + 1)?
 
           let new_entries = recover iso _entries.clone() end
@@ -103,11 +101,10 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
     else
       // there is no entry in our array; add one
       let new_bitmap = _bitmap or bit
-      let new_idx = Bits.index(new_bitmap, bit)
+      let new_idx = _Bits.index(new_bitmap, bit)
       let new_entries =
         recover iso
-          let es = Array[_MapEntry[K, V, H]](_entries.size() + 1)
-          _entries.copy_to(es, 0, 0, _entries.size())
+          let es = _entries.clone()
           es.insert(new_idx, (key, value))?
           es
         end
@@ -117,9 +114,8 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
   fun val remove(key: K, hash: USize, level: USize)
     : (_MapNode[K, V, H] | _MapLeaf[K, V, H] | _NodeRemoved) ?
   =>
-    let msk = Bits.mask(hash, level)
-    let bit = Bits.bitpos(hash, level)
-    let idx = Bits.index(_bitmap, bit)
+    let bit = _Bits.bitpos(hash, level)
+    let idx = _Bits.index(_bitmap, bit)
     match _entries(idx)?
     | (let k: K, let v: V) =>
       // hash matches a leaf, remove it
