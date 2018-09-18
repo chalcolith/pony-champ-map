@@ -30,13 +30,6 @@ class val HashMap[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
   fun val apply(k: K): val->V ? =>
     _root(k, H.hash(k), 0)?
 
-  fun val try_get(k: K): (val->V | None) =>
-    try
-      _root(k, H.hash(k), 0)?
-    else
-      None
-    end
-
   fun val update(key: K, value: V): HashMap[K, V, H] ? =>
     (let node, let inserted) = _root.update(key, H.hash(key), value, 0)?
     _create(node, if inserted then _size + 1 else _size end)
@@ -48,6 +41,28 @@ class val HashMap[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
     else
       error
     end
+
+  fun val get_or_else(k: K, alt: val->V): val->V =>
+    try
+      apply(k)?
+    else
+      alt
+    end
+
+  fun val contains(k: K): Bool =>
+    try
+      apply(k)?
+      true
+    else
+      false
+    end
+
+  fun val concat(iter: Iterator[(val->K, val->V)]): HashMap[K, V, H] ? =>
+    var map = this
+    for (k, v) in iter do
+      map = map.update(k, v)
+    end
+    map
 
   fun val debug(str: String iso, pk: {(K, String iso): String iso^},
     pv: {(V, String iso): String iso^}): String iso^

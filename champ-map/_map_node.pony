@@ -22,6 +22,12 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
     _entries = consume entries
     _bitmap = bitmap
 
+  fun val entries_size(): USize =>
+    _entries.size()
+
+  fun val entries_entry(i: USize): _MapEntry[K, V, H] ? =>
+    _entries(i)?
+
   fun val apply(key: K, hash: USize, level: USize): V ? =>
     let bit = _Bits.bitpos(hash, level)
     let idx = _Bits.index(_bitmap, bit)
