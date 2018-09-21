@@ -60,9 +60,18 @@ class val HashMap[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
   fun val concat(iter: Iterator[(val->K, val->V)]): HashMap[K, V, H] ? =>
     var map = this
     for (k, v) in iter do
-      map = map.update(k, v)
+      map = map.update(k, v)?
     end
     map
+
+  fun val pairs(): MapPairs[K, V, H] =>
+    MapPairs[K, V, H](_root, _size)
+
+  fun val keys(): MapKeys[K, V, H] =>
+    MapKeys[K, V, H](_root, _size)
+
+  fun val values(): MapValues[K, V, H] =>
+    MapValues[K, V, H](_root, _size)
 
   fun val debug(str: String iso, pk: {(K, String iso): String iso^},
     pv: {(V, String iso): String iso^}): String iso^

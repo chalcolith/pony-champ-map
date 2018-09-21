@@ -131,6 +131,90 @@ class iso _TestHashMapRemoveMultiple is UnitTest
     end
     h.assert_eq[USize](0, map.size())
 
+class iso _TestHashMapIteratorPairs is UnitTest
+  fun name(): String => "hash_map/iterator_pairs"
+
+  fun apply(h: TestHelper) ? =>
+    let num: USize = 100_000
+    let rng = Rand(1234, 5678)
+
+    let keys = _Shuffle.get_array(rng, num)?
+    var map = Map[USize, _TestValue]
+    for k in keys.values() do
+      map = map.update(k, _TestValue(k))?
+    end
+
+    let found = Array[Bool].init(false, num)
+    for (k, v) in map.pairs() do
+      found(k)? = true
+    end
+
+    var i: USize = 0
+    var nf: USize = 0
+    while i < found.size() do
+      let f = found(i)?
+      if f then nf = nf + 1 end
+      h.assert_true(f, "did not find key " + i.string())
+      i = i + 1
+    end
+    h.assert_eq[USize](num, nf)
+
+class iso _TestHashMapIteratorKeys is UnitTest
+  fun name(): String => "hash_map/iterator_keys"
+
+  fun apply(h: TestHelper) ? =>
+    let num: USize = 100_000
+    let rng = Rand(1234, 5678)
+
+    let keys = _Shuffle.get_array(rng, num)?
+    var map = Map[USize, _TestValue]
+    for k in keys.values() do
+      map = map.update(k, _TestValue(k))?
+    end
+
+    let found = Array[Bool].init(false, num)
+    for k in map.keys() do
+      found(k)? = true
+    end
+
+    var i: USize = 0
+    var nf: USize = 0
+    while i < found.size() do
+      let f = found(i)?
+      if f then nf = nf + 1 end
+      h.assert_true(f, "did not find key " + i.string())
+      i = i + 1
+    end
+    h.assert_eq[USize](num, nf)
+
+class iso _TestHashMapIteratorValues is UnitTest
+  fun name(): String => "hash_map/iterator_values"
+
+  fun apply(h: TestHelper) ? =>
+    let num: USize = 100_000
+    let rng = Rand(1234, 5678)
+
+    let keys = _Shuffle.get_array(rng, num)?
+    var map = Map[USize, _TestValue]
+    for k in keys.values() do
+      map = map.update(k, _TestValue(k))?
+    end
+
+    let found = Array[Bool].init(false, num)
+    for v in map.values() do
+      found(v.n)? = true
+    end
+
+    var i: USize = 0
+    var nf: USize = 0
+    while i < found.size() do
+      let f = found(i)?
+      if f then nf = nf + 1 end
+      h.assert_true(f, "did not find key " + i.string())
+      i = i + 1
+    end
+    h.assert_eq[USize](num, nf)
+
 primitive _Shuffle
   fun get_array(rng: Rand, size: USize): Array[USize] ? =>
     let arr = Array[USize](size)
