@@ -32,14 +32,14 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
     let bit = _Bits.bitpos(hash, level)
     let idx = _Bits.index(_bitmap, bit)
     match _entries(idx)?
+    | let node: _MapNode[K, V, H] =>
+      node(key, hash, level +~ 1)?
     | (let k: K, let v: V) =>
       if H.eq(k, key) then
         v
       else
         error
       end
-    | let node: _MapNode[K, V, H] =>
-      node(key, hash, level + 1)?
     | let bucket: _MapBucket[K, V, H] =>
       for entry in bucket.values() do
         if H.eq(entry._1, key) then
@@ -57,6 +57,13 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
     if idx < _entries.size() then
       // there is already an entry at the index in our array
       match _entries(idx)?
+      | let node: _MapNode[K, V, H] =>
+        // entry is a node, update it recursively
+        (let new_node, let inserted) = node.update(key, hash, value,
+          level +~ 1)?
+        let new_entries = recover iso _entries.clone() end
+        new_entries.update(idx, new_node)?
+        (_MapNode[K, V, H](consume new_entries, _bitmap), inserted)
       | (let existing_key: K, let existing_value: V) =>
         // entry is a value
         if H.eq(key, existing_key) then
@@ -66,55 +73,70 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
           (_MapNode[K, V, H](consume new_entries, _bitmap), false)
         elseif level == _Bits.max_level() then
           // we don't have any hash left, make a new bucket
-          let new_bucket =
-            recover val
-              let bb = _MapBucket[K, V, H](2)
-              bb.push((existing_key, existing_value))
-              bb.>push((key, value))
-            end
           let new_entries = recover iso _entries.clone() end
-          new_entries.update(idx, new_bucket)?
+          new_entries.update(idx,
+            [ (existing_key, existing_value); (key, value) ])?
           (_MapNode[K, V, H](consume new_entries, _bitmap), true)
         else
           // make a new node with the original value and ours
-          var sub_node = _MapNode[K, V, H].empty()
-          (sub_node, _) = sub_node.update(existing_key, H.hash(existing_key),
-            existing_value, level + 1)?
-          (sub_node, _) = sub_node.update(key, hash, value, level + 1)?
-
+          let existing_hash = H.hash(existing_key)
+          let sub_bit0 = _Bits.bitpos(existing_hash, level +~ 1)
+          let sub_bit1 = _Bits.bitpos(hash, level +~ 1)
+          let sub_node =
+            if sub_bit0 < sub_bit1 then
+              let sub_entries: Array[_MapEntry[K, V, H]] iso =
+                recover iso
+                  [ (existing_key, existing_value) ; (key, value) ]
+                end
+              _MapNode[K, V, H](consume sub_entries, sub_bit0 or sub_bit1)
+            elseif sub_bit0 > sub_bit1 then
+              let sub_entries: Array[_MapEntry[K, V, H]] iso =
+                recover iso
+                  [ (key, value) ; (existing_key, existing_value) ]
+                end
+              _MapNode[K, V, H](consume sub_entries, sub_bit0 or sub_bit1)
+            else
+              // hash collision at this level; combine lower
+              var sn = _MapNode[K, V, H]([(existing_key, existing_value)],
+                sub_bit0)
+              (sn, _) = sn.update(key, hash, value, level +~ 1)?
+              sn
+            end
           let new_entries = recover iso _entries.clone() end
           new_entries.update(idx, sub_node)?
           (_MapNode[K, V, H](consume new_entries, _bitmap), true)
         end
-      | let node: _MapNode[K, V, H] =>
-        // entry is a node, update it recursively
-        (let new_node, let inserted) = node.update(key, hash, value, level + 1)?
-        let new_entries = recover iso _entries.clone() end
-        new_entries.update(idx, new_node)?
-        (_MapNode[K, V, H](consume new_entries, _bitmap), inserted)
       | let bucket: _MapBucket[K, V, H] =>
         // entry is a bucket; add our value to it
+        let new_entries = recover iso _entries.clone() end
+        var inserted = true
         let new_bucket =
           recover val
             let nb = bucket.clone()
-            nb.push((key, value))
+            for (i, (k, _)) in nb.pairs() do
+              if H.eq(key, k) then
+                nb(i)? = (key, value)
+                inserted = false
+                break
+              end
+            end
+            if inserted then
+              nb.push((key, value))
+            end
             nb
           end
-        let new_entries = recover iso _entries.clone() end
         new_entries.update(idx, new_bucket)?
-        (_MapNode[K, V, H](consume new_entries, _bitmap), true)
+        (_MapNode[K, V, H](consume new_entries, _bitmap), inserted)
       end
     else
       // there is no entry in our array; add one
-      let new_bitmap = _bitmap or bit
-      let new_idx = _Bits.index(new_bitmap, bit)
       let new_entries =
         recover iso
           let es = _entries.clone()
-          es.insert(new_idx, (key, value))?
+          es.push((key, value))
           es
         end
-      (_MapNode[K, V, H](consume new_entries, new_bitmap), true)
+      (_MapNode[K, V, H](consume new_entries, _bitmap or bit), true)
     end
 
   fun val remove(key: K, hash: USize, level: USize)
@@ -130,7 +152,7 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
       end
       _remove_entry(idx, level)?
     | let node: _MapNode[K, V, H] =>
-      match node.remove(key, hash, level + 1)?
+      match node.remove(key, hash, level +~ 1)?
       | _NodeRemoved =>
         // node pointed to a single entry; just remove it
         _remove_entry(idx, level)?

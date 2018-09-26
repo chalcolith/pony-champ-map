@@ -1,4 +1,8 @@
 
+// cls && make && make test
+// && stable env ponyc -o build\release champ-map\bench
+// && build\release\bench.exe --ponynoyield --noadjust
+
 use "ponybench"
 use "random"
 
