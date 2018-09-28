@@ -32,14 +32,14 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
     let bit = _Bits.bitpos(hash, level)
     let idx = _Bits.index(_bitmap, bit)
     match _entries(idx)?
-    | let node: _MapNode[K, V, H] =>
-      node(key, hash, level +~ 1)?
     | (let k: K, let v: V) =>
       if H.eq(k, key) then
         v
       else
         error
       end
+    | let node: _MapNode[K, V, H] =>
+      node(key, hash, level +~ 1)?
     | let bucket: _MapBucket[K, V, H] =>
       for entry in bucket.values() do
         if H.eq(entry._1, key) then
