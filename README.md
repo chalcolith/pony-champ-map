@@ -1,12 +1,10 @@
-# champ_map
+# Pony-Champ-Map
 
-{PROJECT_DESCRIPTION}
+This is an experimental implementation of the compressed hash array-mapped
+prefix tree from 'Optimizing Hash-Array Mapped Tries for Fast and Lean Immutable
+JVM Collections' by Michael J. Steindorfer and Jurgen J. Vinju.
 
-## Status
-
-[![CircleCI](https://circleci.com/gh/kulibali/champ_map.svg?style=svg)](https://circleci.com/gh/kulibali/champ_map)
-
-{PROJECT_STATUS}
+Mostly developed to investigate bugs in the existing Pony implementation.
 
 ## Installation
 
@@ -16,7 +14,7 @@
 ```json
 {
   "type": "github",
-  "repo": "kulibali/champ_map"
+  "repo": "kulibali/pony-champ-map"
 }
 ```
 
