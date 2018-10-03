@@ -24,11 +24,11 @@ class val HashMap[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
     _root = root
     _size = size'
 
-  fun val apply(k: K): val->V ? =>
-    _root(k, H.hash(k), 0)?
-
   fun val size(): USize =>
     _size
+
+  fun val apply(k: K): val->V ? =>
+    _root(k, H.hash(k), 0)?
 
   fun val update(key: K, value: V): HashMap[K, V, H] ? =>
     (let node, let inserted) = _root.update(key, H.hash(key), value, 0)?
