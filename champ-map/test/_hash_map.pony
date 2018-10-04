@@ -83,7 +83,7 @@ class iso _TestHashMapRemoveMultiple is UnitTest
   fun name(): String => "hash_map/remove_multiple"
 
   fun apply(h: TestHelper) ? =>
-    let num: USize = 10 //_000
+    let num: USize = 100_000
     let rng = Rand(1234, 5678)
 
     let keys = _Shuffle.get_array(rng, num)?
@@ -94,10 +94,10 @@ class iso _TestHashMapRemoveMultiple is UnitTest
       let v = _TestValue(rng.next().usize())
       vals.push(v)
       map = map.update(k, v)?
-      if false then
-        h.log("adding k=" + k.string() + ", v=" + v.n.string())
-        _Debug.debug(h, map)
-      end
+      // if true then
+      //   h.log("adding k=" + k.string() + ", v=" + v.n.string())
+      //   _Debug.debug(h, map)
+      // end
     end
 
     var expected_size = map.size()
@@ -105,10 +105,12 @@ class iso _TestHashMapRemoveMultiple is UnitTest
     for i in indices_to_delete.values() do
       let k = keys(i)?
       let v = vals(i)?
-      if false then
-        h.log("deleting i=" + i.string() + ", k=" + k.string())
-        _Debug.debug(h, map)
-      end
+      // if true then
+      //   h.log("deleting i=" + i.string() + ", k=" + k.string())
+      //   if k == 81 then
+      //     _Debug.debug(h, map)
+      //   end
+      // end
 
       h.assert_no_error(
         {() ? =>
@@ -137,7 +139,7 @@ class iso _TestHashMapIteratorPairs is UnitTest
   fun name(): String => "hash_map/iterator_pairs"
 
   fun apply(h: TestHelper) ? =>
-    let num: USize = 10 //0_000
+    let num: USize = 100_000
     let rng = Rand(1234, 5678)
 
     let keys = _Shuffle.get_array(rng, num)?
@@ -165,7 +167,7 @@ class iso _TestHashMapIteratorKeys is UnitTest
   fun name(): String => "hash_map/iterator_keys"
 
   fun apply(h: TestHelper) ? =>
-    let num: USize = 10 //0_000
+    let num: USize = 100_000
     let rng = Rand(1234, 5678)
 
     let keys = _Shuffle.get_array(rng, num)?
@@ -193,7 +195,7 @@ class iso _TestHashMapIteratorValues is UnitTest
   fun name(): String => "hash_map/iterator_values"
 
   fun apply(h: TestHelper) ? =>
-    let num: USize = 10 //0_000
+    let num: USize = 100_000
     let rng = Rand(1234, 5678)
 
     let keys = _Shuffle.get_array(rng, num)?

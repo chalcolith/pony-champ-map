@@ -83,14 +83,14 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
         var node = (_entries(node_idx)? as _MapNode[K, V, H])
         if lower_data then
           (let k, let v) = _entries(data_idx)? as _MapLeaf[K, V, H]
-          (node, _) = node.update(k, H.hash(k), v, level + 1)?
-          (node, let inserted) = node.update(key, hash, value, level + 1)?
+          (node, _) = node.update(k, H.hash(k), v, level +~ 1)?
+          (node, let inserted) = node.update(key, hash, value, level +~ 1)?
           es.update(node_idx, node)?
           es.remove(data_idx, 1)
           (_MapNode[K, V, H](consume es, _datamap and (not bit), _nodemap),
             inserted)
         else
-          (node, let inserted) = node.update(key, hash, value, level + 1)?
+          (node, let inserted) = node.update(key, hash, value, level +~ 1)?
           es.update(node_idx, node)?
           (_MapNode[K, V, H](consume es, _datamap, _nodemap), inserted)
         end
@@ -139,101 +139,124 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
       end
     end
 
+  fun val _remove_remaining_entry(size: USize, idx: USize, level: USize)
+    : (_MapNode[K, V, H] | _MapLeaf[K, V, H] | _NodeRemoved) ?
+  =>
+    if size == 1 then
+      _NodeRemoved
+    else
+      match _entries(1 - idx)?
+      | let leaf: _MapLeaf[K, V, H] =>
+        leaf
+      | let node: _MapNode[K, V, H] =>
+        var new_node = empty()
+        let iter = MapPairs[K, V, H](node, USize.max_value())
+        while true do
+          try
+            (let k, let v) = iter.next()?
+            (new_node, _) = new_node.update(k, H.hash(k), v, level)?
+          else
+            break
+          end
+        end
+        new_node
+      else
+        error
+      end
+    end
+
   fun val remove(key: K, hash: USize, level: USize)
     : (_MapNode[K, V, H] | _MapLeaf[K, V, H] | _NodeRemoved) ?
   =>
-    error
-
-  // fun val _remove_old(key: K, hash: USize, level: USize)
-  //   : (_MapNode[K, V, H] | _MapLeaf[K, V, H] | _NodeRemoved) ?
-  // =>
-  //   let bit = _Bits.bitpos(hash, level)
-  //   let idx = _Bits.index(_bitmap, bit)
-  //   match _entries(idx)?
-  //   | (let k: K, let v: V) =>
-  //     // hash matches a leaf, remove it
-  //     if not H.eq(k, key) then
-  //       error
-  //     end
-  //     _remove_entry(idx, level)?
-  //   | let node: _MapNode[K, V, H] =>
-  //     match node.remove(key, hash, level +~ 1)?
-  //     | _NodeRemoved =>
-  //       // node pointed to a single entry; just remove it
-  //       _remove_entry(idx, level)?
-  //     | let entry: _MapEntry[K, V, H] =>
-  //       // replace entry
-  //       let es = recover _entries.clone() end
-  //       es(idx)? = entry
-  //       _MapNode[K, V, H](consume es, _bitmap)
-  //     end
-  //   | let bucket: _MapBucket[K, V, H] =>
-  //     // remove us from the bucket
-  //     let bs =
-  //       recover val
-  //         let bs' = _MapBucket[K, V, H](bucket.size())
-  //         for entry in bucket.values() do
-  //           if not H.eq(entry._1, key) then
-  //             bs'.push(entry)
-  //           end
-  //         end
-  //         bs'
-  //       end
-  //     if bs.size() == bucket.size() then
-  //       // we didn't find our entry
-  //       error
-  //     end
-  //     if (level > 0) and (bs.size() < 2) then
-  //       if bs.size() == 0 then
-  //         // bucket is now empty
-  //         _remove_entry(idx, level)?
-  //       else
-  //         // promote remaining value to leaf
-  //         let es = recover _entries.clone() end
-  //         es(idx)? = bs(0)?
-  //         _MapNode[K, V, H](consume es, _bitmap)
-  //       end
-  //     else
-  //       // remove entry from the bucket
-  //       let es = recover _entries.clone() end
-  //       es(idx)? = bs
-  //       _MapNode[K, V, H](consume es, _bitmap)
-  //     end
-  //   end
-
-  // fun val _remove_entry(idx: USize, level: USize)
-  //   : (_MapNode[K, V, H] | _MapLeaf[K, V, H] | _NodeRemoved) ?
-  // =>
-  //   if (level > 0) and (_entries.size() <= 2) then
-  //     if _entries.size() == 1 then
-  //       _NodeRemoved
-  //     else
-  //       let entry = _entries(1 - idx)?
-  //       match entry
-  //       | let leaf: _MapLeaf[K, V, H] =>
-  //         leaf
-  //       else
-  //         _MapNode[K, V, H]([entry], _remove_bit(idx))
-  //       end
-  //     end
-  //   else
-  //     let es = recover _entries.clone() end
-  //     es.delete(idx)?
-  //     _MapNode[K, V, H](consume es, _remove_bit(idx))
-  //   end
-
-  // fun val _remove_bit(idx: USize): USize =>
-  //   var found: USize = 0
-  //   for i in col.Range(0, USize(0).bitwidth()) do
-  //     let bit = USize(1) << i
-  //     if (bit and _bitmap) != 0 then
-  //       if found == idx then
-  //         return _bitmap and (not bit)
-  //       end
-  //       found = found + 1
-  //     end
-  //   end
-  //   _bitmap
+    let bit = _Bits.bitpos(hash, level)
+    if (_datamap and bit) != 0 then
+      let num_entries = _entries.size()
+      let data_idx = _Bits.index(_datamap, bit)
+      if (level > 0) and (num_entries <= 2) then
+        _remove_remaining_entry(num_entries, data_idx, level)?
+      else
+        let es = recover iso _entries.clone() end
+        es.remove(data_idx, 1)
+        _MapNode[K, V, H](consume es, _datamap and (not bit), _nodemap)
+      end
+    elseif (_nodemap and bit) != 0 then
+      let num_entries = _entries.size()
+      let node_idx = _entries.size() - 1 - _Bits.index(_nodemap, bit)
+      if level < _Bits.max_level() then
+        let node = _entries(node_idx)? as _MapNode[K, V, H]
+        match node.remove(key, hash, level +~ 1)?
+        | let sub_node: _MapNode[K, V, H] =>
+          let es = recover iso _entries.clone() end
+          es.update(node_idx, sub_node)?
+          _MapNode[K, V, H](consume es, _datamap, _nodemap)
+        | let leaf: _MapLeaf[K, V, H] =>
+          let data_idx = _Bits.index(_datamap, bit)
+          let es = recover iso _entries.clone() end
+          es.remove(node_idx, 1)
+          es.insert(data_idx, leaf)?
+          _MapNode[K, V, H](consume es, _datamap or bit, _nodemap and (not bit))
+        | _NodeRemoved =>
+          if (level > 0) and (num_entries <= 2) then
+            _remove_remaining_entry(num_entries, node_idx, level)?
+          else
+            let es = recover iso _entries.clone() end
+            es.remove(node_idx, 1)
+            _MapNode[K, V, H](consume es, _datamap, _nodemap and (not bit))
+          end
+        end
+      else
+        let bucket = _entries(node_idx)? as _MapBucket[K, V, H]
+        if bucket.size() > 1 then
+          let bs =
+            recover val
+              let bs' = _MapBucket[K, V, H](bucket.size())
+              for (k, v) in bucket.values() do
+                if not H.eq(k, key) then
+                  bs'.push((k, v))
+                end
+              end
+              bs'
+            end
+          if bs.size() == bucket.size() then
+            error // we didn't find the leaf
+          elseif bs.size() == 1 then
+            let data_index = _Bits.index(_datamap, bit)
+            let node_index = _entries.size() - 1 - _Bits.index(_nodemap, bit)
+            let es = recover iso _entries.clone() end
+            es.remove(node_index, 1)
+            es.insert(data_index, bs(0)?)?
+            _MapNode[K, V, H](consume es, _datamap or bit,
+              _nodemap and (not bit))
+          else
+            let es = recover iso _entries.clone() end
+            es.update(node_idx, consume bs)?
+            _MapNode[K, V, H](consume es, _datamap, _nodemap)
+          end
+        else
+          if num_entries <= 2 then
+            if num_entries == 1 then
+              _NodeRemoved
+            else
+              match _entries(1 - node_idx)?
+              | let leaf: _MapLeaf[K, V, H] =>
+                leaf
+              | let sub_bucket: _MapBucket[K, V, H] =>
+                _MapNode[K, V, H]([recover sub_bucket.clone() end], _datamap,
+                  _nodemap and (not bit))
+              | let node: _MapNode[K, V, H] =>
+                error
+              end
+            end
+          else
+            let es = recover iso _entries.clone() end
+            es.remove(node_idx, 1)
+            _MapNode[K, V, H](consume es, _datamap, _nodemap and (not bit))
+          end
+        end
+      end
+    else
+      error
+    end
 
   fun val debug(str: String iso, level: USize, index: USize, bitpos: USize,
     pk: {(K, String iso): String iso^}, pv: {(V, String iso): String iso^})
