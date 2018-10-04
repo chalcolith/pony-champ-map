@@ -76,4 +76,12 @@ class val HashMap[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
   fun val debug(str: String iso, pk: {(K, String iso): String iso^},
     pv: {(V, String iso): String iso^}): String iso^
   =>
-    _root.debug(consume str, 0, pk, pv)
+    try
+      _root.debug(consume str, 0, 0, 0, pk, pv)?
+    else
+      recover iso
+        let s = String
+        s.append("Error!")
+        s
+      end
+    end

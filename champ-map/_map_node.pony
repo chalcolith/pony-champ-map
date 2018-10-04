@@ -63,13 +63,16 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
     : (_MapNode[K, V, H], Bool) ?
   =>
     let bit = _Bits.bitpos(hash, level)
+    let data_idx = _Bits.index(_datamap, bit)
+    var lower_data = false
     if (_datamap and bit) != 0 then
-      let data_idx = _Bits.index(_datamap, bit)
       (let k, let v) = _entries(data_idx)? as _MapLeaf[K, V, H]
       if H.eq(k, key) then
         let es = recover iso _entries.clone() end
         es.update(data_idx, (key, value))?
         return (_MapNode[K, V, H](consume es, _datamap, _nodemap), false)
+      else
+        lower_data = true
       end
     end
 
@@ -77,15 +80,36 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
       let node_idx = _entries.size() - 1 - _Bits.index(_nodemap, bit)
       if level < _Bits.max_level() then
         let es = recover iso _entries.clone() end
-        (let node, let inserted) = (_entries(node_idx)? as _MapNode[K, V, H])
-          .update(key, hash, value, level + 1)?
-        es.update(node_idx, node)?
-        (_MapNode[K, V, H](consume es, _datamap, _nodemap), inserted)
+        var node = (_entries(node_idx)? as _MapNode[K, V, H])
+        if lower_data then
+          (let k, let v) = _entries(data_idx)? as _MapLeaf[K, V, H]
+          (node, _) = node.update(k, H.hash(k), v, level + 1)?
+          (node, let inserted) = node.update(key, hash, value, level + 1)?
+          es.update(node_idx, node)?
+          es.remove(data_idx, 1)
+          (_MapNode[K, V, H](consume es, _datamap and (not bit), _nodemap),
+            inserted)
+        else
+          (node, let inserted) = node.update(key, hash, value, level + 1)?
+          es.update(node_idx, node)?
+          (_MapNode[K, V, H](consume es, _datamap, _nodemap), inserted)
+        end
       else
         let bs =
           recover val
             let bucket = (_entries(node_idx)? as _MapBucket[K, V, H]).clone()
-            bucket.>push((key, value))
+            var found = false
+            for (i, (k, v)) in bucket.pairs() do
+              if H.eq(k, key) then
+                bucket.update(i, (key, value))?
+                found = true
+                break
+              end
+            end
+            if not found then
+              bucket.push((key, value))
+            end
+            bucket
           end
         let es = recover iso _entries.clone() end
         es.update(node_idx, bs)?
@@ -93,10 +117,21 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
       end
     else
       if level < _Bits.max_level() then
-        let data_idx = _Bits.index(_datamap, bit)
         let es = recover iso _entries.clone() end
-        es.insert(data_idx, (key, value))?
-        (_MapNode[K, V, H](consume es, _datamap or bit, _nodemap), true)
+        if lower_data then
+          (let k, let v) = _entries(data_idx)? as _MapLeaf[K, V, H]
+          var node = empty()
+          (node, _) = node.update(k, H.hash(k), v, level + 1)?
+          (node, let inserted) = node.update(key, hash, value, level + 1)?
+          let node_idx = _entries.size() - 1 - _Bits.index(_nodemap, bit)
+          es.remove(data_idx, 1)
+          es.insert(node_idx, node)?
+          (_MapNode[K, V, H](consume es, _datamap and (not bit),
+            _nodemap or bit), inserted)
+        else
+          es.insert(data_idx, (key, value))?
+          (_MapNode[K, V, H](consume es, _datamap or bit, _nodemap), true)
+        end
       else
         let es = recover iso _entries.clone() end
         es.push([(key, value)])
@@ -200,15 +235,18 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
   //   end
   //   _bitmap
 
-  fun val debug(str: String iso, level: USize,
+  fun val debug(str: String iso, level: USize, index: USize, bitpos: USize,
     pk: {(K, String iso): String iso^}, pv: {(V, String iso): String iso^})
-    : String iso^
+    : String iso^ ?
   =>
     var str': String iso = consume str
     for _ in col.Range(0, level) do str'.append("  ") end
-    str'.append("{ " + level.string() + " < ")
+    str'.append(index.string() + "@" + bitpos.string() + ": { " + level.string()
+      + " < ")
+    let bitpositions = Array[USize]
     for bit in col.Range(0, USize(0).bitwidth()) do
       if ((USize(1) << bit) and _datamap) != 0 then
+        bitpositions.push(bit)
         str'.append(bit.string())
         str'.append(" ")
       end
@@ -216,6 +254,7 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
     str'.append("; ")
     for bit in col.Range(0, USize(0).bitwidth()) do
       if ((USize(1) << bit) and _nodemap) != 0 then
+        bitpositions.push(bit)
         str'.append(bit.string())
         str'.append(" ")
       end
@@ -230,16 +269,18 @@ class val _MapNode[K: Any #share, V: Any #share, H: col.HashFunction[K] val]
       match entry
       | (let k: K, let v: V) =>
         for _ in col.Range(0, level+1) do str'.append("  ") end
-        str'.append("(")
+        str'.append(i.string() + "@" + bitpositions(i)?.string())
+        str'.append(": (")
         str' = pk(k, consume str')
         str'.append(", ")
         str' = pv(v, consume str')
         str'.append(")")
       | let node: _MapNode[K, V, H] =>
-        str' = node.debug(consume str', level+1, pk, pv)
+        str' = node.debug(consume str', level+1, i, bitpositions(i)?, pk, pv)?
       | let bucket: _MapBucket[K, V, H] =>
         for _ in col.Range(0, level+1) do str'.append("  ") end
-        str'.append("[")
+        str'.append(i.string() + "@" + bitpositions(i)?.string())
+        str'.append(": [")
         var j: USize = 0
         for value in bucket.values() do
           if j > 0 then

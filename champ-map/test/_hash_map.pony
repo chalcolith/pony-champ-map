@@ -45,24 +45,26 @@ class iso _TestHashMapInsertMultiple is UnitTest
   fun name(): String => "hash_map/insert_multiple"
 
   fun apply(h: TestHelper) ? =>
-    let num: USize = 100 //_000
+    let num: USize = 100_000
     let rng = Rand
     let arr = Array[(USize,_TestValue)](num)
 
     let not_in_map = rng.next().usize()
     var map = Map[USize, _TestValue]
-    _Debug.debug(h, map)
+    //_Debug.debug(h, map)
     for i in col.Range(0, num) do
       var k = rng.next().usize()
       while k == not_in_map do k = rng.next().usize() end
       let v = _TestValue(rng.next().usize())
       arr.push((k, v))
-      h.log("adding k=" + k.string() + ", v=" + v.n.string())
+      //h.log(i.string() + ": adding k=" + k.string() + ", v=" + v.n.string())
       map = map.update(k, v)?
-      _Debug.debug(h, map)
+      //_Debug.debug(h, map)
     end
+    //h.log("done adding")
 
-    for (k, expected) in arr.values() do
+    for (i, (k, expected)) in arr.pairs() do
+      //h.log("get " + i.string())
       let actual = map(k)?
       h.assert_eq[USize](expected.n, actual.n)
     end

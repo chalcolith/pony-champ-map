@@ -21,7 +21,7 @@ primitive _Bits
     (hash >>~ (level *~ chunk)) and ((USize(1) <<~ chunk) -~ 1)
 
   fun bitpos(hash: USize, level: USize): USize =>
-    USize(1) <<~ _Bits.mask(hash, level)
+    USize(1) <<~ mask(hash, level)
 
   fun index(bitmap: USize, bit: USize): USize =>
     (bitmap and (bit -~ 1)).popcount()
