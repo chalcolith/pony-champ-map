@@ -15,14 +15,18 @@ actor Main is BenchmarkList
     PonyBench(env, this)
 
   fun tag benchmarks(bench: PonyBench) =>
-    bench(_KuliMapEqInsert)
-    bench(_PonyMapEqInsert)
-    bench(_KuliMapEqRemove)
-    bench(_PonyMapEqRemove)
-    bench(_KuliMapEqRetrieve)
-    bench(_PonyMapEqRetrieve)
-    bench(_KuliMapEqIterate)
-    bench(_PonyMapEqIterate)
+    for n in [as USize: 10; 100; 1000; 10_000; 100_000; 1_000_000].values() do
+      bench(_KuliMapEqInsert(n))
+      bench(_PonyMapEqInsert(n))
+      bench(_KuliMapEqUpdate(n))
+      bench(_PonyMapEqUpdate(n))
+      bench(_KuliMapEqRemove(n))
+      bench(_PonyMapEqRemove(n))
+      bench(_KuliMapEqRetrieve(n))
+      bench(_PonyMapEqRetrieve(n))
+      bench(_KuliMapEqIterate(n))
+      bench(_PonyMapEqIterate(n))
+    end
 
 class iso _KuliMapEqInsert is MicroBenchmark
   let _n: USize
@@ -30,17 +34,19 @@ class iso _KuliMapEqInsert is MicroBenchmark
   var _m: kuli.Map[USize, _TestValue]
   var _i: USize
 
-  new iso create(n: USize = 100_000) =>
+  new iso create(n: USize = 1_000_000) =>
     _n = n
     _a = try _Shuffle.get_array(Rand, _n)? else Array[USize] end
     _m = kuli.Map[USize, _TestValue]
     _i = 0
 
-  fun name(): String => "kuli/map/eq/insert"
+  fun name(): String => "kuli/map/eq/insert " + _n.string()
 
   fun ref apply() ? =>
     let k = _a(_i % _a.size())?
     _m = _m.update(k, _TestValue(k))?
+    DoNotOptimise[kuli.Map[USize, _TestValue]](_m)
+    DoNotOptimise.observe()
     _i = _i + 1
 
 class iso _PonyMapEqInsert is MicroBenchmark
@@ -49,17 +55,75 @@ class iso _PonyMapEqInsert is MicroBenchmark
   var _m: pony.Map[USize, _TestValue]
   var _i: USize
 
-  new iso create(n: USize = 100_000) =>
+  new iso create(n: USize = 1_000_000) =>
     _n = n
     _a = try _Shuffle.get_array(Rand, _n)? else Array[USize] end
     _m = pony.Map[USize, _TestValue]
     _i = 0
 
-  fun name(): String => "pony/map/eq/insert"
+  fun name(): String => "pony/map/eq/insert " + _n.string()
 
   fun ref apply() ? =>
     let k = _a(_i % _a.size())?
     _m = _m.update(k, _TestValue(k))
+    DoNotOptimise[pony.Map[USize, _TestValue]](_m)
+    DoNotOptimise.observe()
+    _i = _i + 1
+
+class iso _KuliMapEqUpdate is MicroBenchmark
+  let _n: USize
+  let _a: Array[USize]
+  let _b: Array[USize]
+  var _m: kuli.Map[USize, _TestValue]
+  var _i: USize
+
+  new iso create(n: USize = 1_000_000) =>
+    _n = n
+    let r = Rand
+    _a = try _Shuffle.get_array(r, _n)? else Array[USize] end
+    _b = try _Shuffle.get_array(r, _n)? else Array[USize] end
+    _m = kuli.Map[USize, _TestValue]
+    for a in _a.values() do
+      try
+        _m = _m.update(a, _TestValue(a))?
+      end
+    end
+    _i = 0
+
+  fun name(): String => "kuli/map/eq/update " + _n.string()
+
+  fun ref apply() ? =>
+    let k = _a(_i % _a.size())?
+    _m = _m.update(k, _TestValue(_b(_i % _b.size())?))?
+    DoNotOptimise[kuli.Map[USize, _TestValue]](_m)
+    DoNotOptimise.observe()
+    _i = _i + 1
+
+class iso _PonyMapEqUpdate is MicroBenchmark
+  let _n: USize
+  let _a: Array[USize]
+  let _b: Array[USize]
+  var _m: pony.Map[USize, _TestValue]
+  var _i: USize
+
+  new iso create(n: USize = 1_000_000) =>
+    _n = n
+    let r = Rand
+    _a = try _Shuffle.get_array(r, _n)? else Array[USize] end
+    _b = try _Shuffle.get_array(r, _n)? else Array[USize] end
+    _m = pony.Map[USize, _TestValue]
+    for a in _a.values() do
+      _m = _m.update(a, _TestValue(a))
+    end
+    _i = 0
+
+  fun name(): String => "pony/map/eq/update " + _n.string()
+
+  fun ref apply() ? =>
+    let k = _a(_i % _a.size())?
+    _m = _m.update(k, _TestValue(_b(_i % _b.size())?))
+    DoNotOptimise[pony.Map[USize, _TestValue]](_m)
+    DoNotOptimise.observe()
     _i = _i + 1
 
 class iso _KuliMapEqRetrieve is MicroBenchmark
@@ -69,7 +133,7 @@ class iso _KuliMapEqRetrieve is MicroBenchmark
   var _m: kuli.Map[USize, _TestValue]
   var _i: USize
 
-  new iso create(n: USize = 100_000) =>
+  new iso create(n: USize = 1_000_000) =>
     _n = n
     let r = Rand
     _a = try _Shuffle.get_array(r, _n)? else Array[USize] end
@@ -82,12 +146,13 @@ class iso _KuliMapEqRetrieve is MicroBenchmark
     end
     _i = 0
 
-  fun name(): String => "kuli/map/eq/retrieve"
+  fun name(): String => "kuli/map/eq/retrieve " + _n.string()
 
   fun ref apply() =>
     try
       let k = _b(_i % _b.size())?
       DoNotOptimise[_TestValue](_m(k)?)
+      DoNotOptimise.observe()
     end
     _i = _i + 1
 
@@ -98,7 +163,7 @@ class iso _PonyMapEqRetrieve is MicroBenchmark
   var _m: pony.Map[USize, _TestValue]
   var _i: USize
 
-  new iso create(n: USize = 100_000) =>
+  new iso create(n: USize = 1_000_000) =>
     _n = n
     let r = Rand
     _a = try _Shuffle.get_array(r, _n)? else Array[USize] end
@@ -109,12 +174,13 @@ class iso _PonyMapEqRetrieve is MicroBenchmark
     end
     _i = 0
 
-  fun name(): String => "pony/map/eq/retrieve"
+  fun name(): String => "pony/map/eq/retrieve " + _n.string()
 
   fun ref apply() =>
     try
       let k = _b(_i % _b.size())?
       DoNotOptimise[_TestValue](_m(k)?)
+      DoNotOptimise.observe()
     end
     _i = _i + 1
 
@@ -125,7 +191,7 @@ class iso _KuliMapEqRemove is MicroBenchmark
   var _m: kuli.Map[USize, _TestValue]
   var _i: USize
 
-  new iso create(n: USize = 100_000) =>
+  new iso create(n: USize = 1_000_000) =>
     _n = n
     let r = Rand
     _a = try _Shuffle.get_array(r, _n)? else Array[USize] end
@@ -138,12 +204,14 @@ class iso _KuliMapEqRemove is MicroBenchmark
     end
     _i = 0
 
-  fun name(): String => "kuli/map/eq/remove"
+  fun name(): String => "kuli/map/eq/remove " + _n.string()
 
   fun ref apply() =>
     try
       let k = _b(_i % _b.size())?
       _m = _m.remove(k)?
+      DoNotOptimise[kuli.Map[USize, _TestValue]](_m)
+      DoNotOptimise.observe()
     end
     _i = _i + 1
 
@@ -154,7 +222,7 @@ class iso _PonyMapEqRemove is MicroBenchmark
   var _m: pony.Map[USize, _TestValue]
   var _i: USize
 
-  new iso create(n: USize = 100_000) =>
+  new iso create(n: USize = 1_000_000) =>
     _n = n
     let r = Rand
     _a = try _Shuffle.get_array(r, _n)? else Array[USize] end
@@ -165,12 +233,14 @@ class iso _PonyMapEqRemove is MicroBenchmark
     end
     _i = 0
 
-  fun name(): String => "pony/map/eq/remove"
+  fun name(): String => "pony/map/eq/remove " + _n.string()
 
   fun ref apply() =>
     try
       let k = _b(_i % _b.size())?
       _m = _m.remove(k)?
+      DoNotOptimise[pony.Map[USize, _TestValue]](_m)
+      DoNotOptimise.observe()
     end
     _i = _i + 1
 
@@ -180,7 +250,7 @@ class iso _KuliMapEqIterate is MicroBenchmark
   let _m: kuli.Map[USize, _TestValue]
   let _i: Iterator[(USize, _TestValue)]
 
-  new iso create(n: USize = 100_000) =>
+  new iso create(n: USize = 1_000_000) =>
     _n = n
     _a = try _Shuffle.get_array(Rand, _n)? else Array[USize] end
     var m = kuli.Map[USize, _TestValue]
@@ -192,12 +262,13 @@ class iso _KuliMapEqIterate is MicroBenchmark
     _m = m
     _i = m.pairs()
 
-  fun name(): String => "kuli/map/eq/iterate"
+  fun name(): String => "kuli/map/eq/iterate " + _n.string()
 
   fun ref apply() =>
     if _i.has_next() then
       try
         DoNotOptimise[(USize, _TestValue)](_i.next()?)
+        DoNotOptimise.observe()
       end
     end
 
@@ -207,7 +278,7 @@ class iso _PonyMapEqIterate is MicroBenchmark
   let _m: pony.Map[USize, _TestValue]
   let _i: Iterator[(USize, _TestValue)]
 
-  new iso create(n: USize = 100_000) =>
+  new iso create(n: USize = 1_000_000) =>
     _n = n
     _a = try _Shuffle.get_array(Rand, _n)? else Array[USize] end
     var m = pony.Map[USize, _TestValue]
@@ -217,12 +288,13 @@ class iso _PonyMapEqIterate is MicroBenchmark
     _m = m
     _i = m.pairs()
 
-  fun name(): String => "pony/map/eq/iterate"
+  fun name(): String => "pony/map/eq/iterate " + _n.string()
 
   fun ref apply() =>
     if _i.has_next() then
       try
         DoNotOptimise[(USize, _TestValue)](_i.next()?)
+        DoNotOptimise.observe()
       end
     end
 
